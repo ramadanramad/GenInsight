@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from google import genai
+import time
 
 # =====================================
 # PAGE CONFIG
@@ -50,8 +51,6 @@ except Exception:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# tampilkan history
-
 for msg in st.session_state.messages:
 
     with st.chat_message(msg["role"]):
@@ -85,17 +84,23 @@ if prompt:
 
             if df is not None:
 
+                stats_summary = (
+                    df.describe()
+                    .round(2)
+                    .to_string()
+                )
+
                 dataset_context = f"""
 Dataset Information
 
 Rows: {df.shape[0]}
 Columns: {df.shape[1]}
 
-Columns:
+Column Names:
 {list(df.columns)}
 
 Statistics:
-{df.describe().to_string()}
+{stats_summary}
 """
 
             full_prompt = f"""
@@ -117,12 +122,29 @@ Dataset Context:
 User Question:
 
 {prompt}
+
+Provide a clear, concise, and professional answer.
 """
 
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=full_prompt
-            )
+            response = None
+
+            for attempt in range(3):
+
+                try:
+
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=full_prompt
+                    )
+
+                    break
+
+                except Exception:
+
+                    if attempt < 2:
+                        time.sleep(3)
+                    else:
+                        raise
 
             answer = response.text
 
@@ -137,4 +159,6 @@ User Question:
 
         except Exception as e:
 
-            st.error(f"Chatbot Error: {e}")
+            st.error(
+                f"Chatbot Error: {e}"
+            )
